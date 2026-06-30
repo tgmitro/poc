@@ -210,13 +210,5 @@ def dashboard():
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    if SSL_CERT and SSL_KEY:
-        # Production: use your own cert/key files (e.g. Let's Encrypt)
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        context.load_cert_chain(SSL_CERT, SSL_KEY)
-    else:
-        # Development: self-signed cert (requires pyopenssl)
-        context = "adhoc"
-
-    print(f"Starting dashboard on https://{HOST}:{PORT}/")
-    app.run(host=HOST, port=PORT, ssl_context=context, debug=False)
+    print(f"Starting dashboard on http://{HOST}:{PORT}/")
+    app.run(host=HOST, port=PORT, debug=False)
