@@ -6,7 +6,6 @@ Serves HTTPS, compatible with Opera Mini Native v4.4.
 import os
 import ssl
 from datetime import datetime
-import xml.etree.ElementTree as ET
 
 import requests
 from dotenv import load_dotenv
@@ -93,50 +92,47 @@ def fetch_bank():
         url = (
             f"https://fioapi.fio.cz/v1/rest/periods/{FIO_API_TOKEN}"
             f"/{start_of_month:%Y-%m-%d}/{today:%Y-%m-%d}"
-            "/transactions.xml"
+            "/transactions.json"
         )
         r = requests.get(url, timeout=15)
         r.raise_for_status()
 
-        root = ET.fromstring(r.text)
-        info = root.find("Info")
-        if info is None:
-            info = root.find("info")
-        if info is None:
-            info = root.find(".//Info")
-        if info is None:
-            return {"error": "XML response missing Info section"}
+        data = r.json()
+        statement = data.get("accountStatement", {})
+        info = statement.get("info", {})
 
-        def get_text(tag: str, default: str = "") -> str:
-            node = info.find(tag)
-            if node is None:
-                node = info.find(tag.lower())
-            if node is None or node.text is None:
+        if not info:
+            return {"error": "JSON response missing accountStatement info"}
+
+        def get_val(tx, column, default=None):
+            col = tx.get(column)
+            if col is None:
                 return default
-            return node.text.strip()
+            return col.get("value", default)
 
         transactions = []
-        for tx in root.findall(".//Transaction"):
-            date_text = (tx.findtext("column_0") or "").strip()
+        tx_list = statement.get("transactionList", {}).get("transaction", [])
+        if not tx_list:
+            tx_list = []
+
+        for tx in tx_list:
+            if tx is None:
+                continue
+            date_text = get_val(tx, "column0")
             if not date_text:
                 continue
 
-            movement_id_text = (tx.findtext("column_22") or "0").strip()
-            try:
-                movement_id = int(movement_id_text)
-            except ValueError:
-                movement_id = 0
+            movement_id = get_val(tx, "column22", 0)
+            amount = get_val(tx, "column1", 0.0)
+            tx_type = get_val(tx, "column8", "")
+            counterparty = get_val(tx, "column10", "")
 
-            amount_text = (tx.findtext("column_1") or "0").strip().replace(",", ".")
-            try:
-                amount = round(float(amount_text), 2)
-            except ValueError:
-                amount = 0.0
+            # Note can be in column 16 or 25
+            note16 = get_val(tx, "column16", "")
+            note25 = get_val(tx, "column25", "")
+            note = (note16 or note25 or "").strip()
 
-            tx_type = (tx.findtext("column_8") or "").strip()
-            counterparty = (tx.findtext("column_10") or "").strip()
-            note = (tx.findtext("column_16") or tx.findtext("column_25") or "").strip()
-            tx_currency = (tx.findtext("column_14") or "").strip()
+            tx_currency = get_val(tx, "column14", "")
 
             transactions.append(
                 {
@@ -153,19 +149,16 @@ def fetch_bank():
         transactions.sort(key=lambda x: x["movement_id"], reverse=True)
         latest_transactions = transactions[:5]
 
-        closing_balance = get_text("closingBalance", "0").replace(",", ".")
         return {
-            "account":  get_text("accountId", ""),
-            "iban":     get_text("iban", "N/A"),
-            "balance":  round(float(closing_balance), 2),
-            "currency": get_text("currency", ""),
+            "account":  info.get("accountId", ""),
+            "iban":     info.get("iban", "N/A"),
+            "balance":  round(float(info.get("closingBalance", 0)), 2),
+            "currency": info.get("currency", ""),
             "transactions": latest_transactions,
         }
     except requests.RequestException as exc:
         return {"error": str(exc)}
-    except ET.ParseError as exc:
-        return {"error": f"Invalid XML response: {exc}"}
-    except (ValueError, TypeError) as exc:
+    except (ValueError, TypeError, KeyError) as exc:
         return {"error": f"Unexpected response: {exc}"}
 
 
