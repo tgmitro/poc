@@ -4,7 +4,7 @@ Serves HTTPS, compatible with Opera Mini Native v4.4.
 """
 
 import os
-import ssl
+import time
 from datetime import datetime
 
 import requests
@@ -35,6 +35,11 @@ SSL_KEY  = os.getenv("SSL_KEY", "")
 REFRESH_INTERVAL = int(os.getenv("REFRESH_INTERVAL", "300"))
 
 UNIT_LABEL = {"metric": "C", "imperial": "F"}.get(WEATHER_UNITS, "C")
+
+# ---------------------------------------------------------------------------
+# Global Caches
+# ---------------------------------------------------------------------------
+_BANK_CACHE = {"data": None, "timestamp": 0}
 
 # ---------------------------------------------------------------------------
 # Data fetching helpers
@@ -84,6 +89,13 @@ def fetch_weather():
 
 def fetch_bank():
     """Return account balance and today's latest transactions or {'error': str}."""
+    global _BANK_CACHE
+    now = time.time()
+
+    # Return cached data if it's less than 30 seconds old
+    if _BANK_CACHE["data"] and (now - _BANK_CACHE["timestamp"] < 30):
+        return _BANK_CACHE["data"]
+
     if not FIO_API_TOKEN:
         return {"error": "FIO_API_TOKEN not set in .env"}
     try:
@@ -95,6 +107,11 @@ def fetch_bank():
             "/transactions.json"
         )
         r = requests.get(url, timeout=15)
+
+        # If rate limited (409), return last known data if available
+        if r.status_code == 409 and _BANK_CACHE["data"]:
+            return _BANK_CACHE["data"]
+
         r.raise_for_status()
 
         data = r.json()
@@ -149,13 +166,19 @@ def fetch_bank():
         transactions.sort(key=lambda x: x["movement_id"], reverse=True)
         latest_transactions = transactions[:5]
 
-        return {
+        result = {
             "account":  info.get("accountId", ""),
             "iban":     info.get("iban", "N/A"),
             "balance":  round(float(info.get("closingBalance", 0)), 2),
             "currency": info.get("currency", ""),
             "transactions": latest_transactions,
         }
+
+        # Update cache
+        _BANK_CACHE["data"] = result
+        _BANK_CACHE["timestamp"] = now
+
+        return result
     except requests.RequestException as exc:
         return {"error": str(exc)}
     except (ValueError, TypeError, KeyError) as exc:
