@@ -33,6 +33,8 @@ PORT     = int(os.getenv("PORT", "4443"))
 SSL_CERT = os.getenv("SSL_CERT", "")
 SSL_KEY  = os.getenv("SSL_KEY", "")
 
+REFRESH_INTERVAL = int(os.getenv("REFRESH_INTERVAL", "300"))
+
 UNIT_LABEL = {"metric": "C", "imperial": "F"}.get(WEATHER_UNITS, "C")
 
 # ---------------------------------------------------------------------------
@@ -181,9 +183,18 @@ def dashboard():
     bank    = fetch_bank()
     now     = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    refresh_interval = REFRESH_INTERVAL
+    if refresh_interval % 60 == 0:
+        m = refresh_interval // 60
+        refresh_text = f"{m} minute{'s' if m != 1 else ''}"
+    else:
+        refresh_text = f"{refresh_interval} second{'s' if refresh_interval != 1 else ''}"
+
     return render_template(
         "dashboard.html",
         now=now,
+        refresh_interval=refresh_interval,
+        refresh_text=refresh_text,
 
         # weather
         weather_city    = weather.get("city", WEATHER_CITY),
@@ -211,4 +222,4 @@ def dashboard():
 
 if __name__ == "__main__":
     print(f"Starting dashboard on http://{HOST}:{PORT}/")
-    app.run(host=HOST, port=PORT, debug=False)
+    app.run(host=HOST, port=PORT, debug=True)

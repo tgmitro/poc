@@ -4,7 +4,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-  <meta http-equiv="refresh" content="60" />
+  <meta http-equiv="refresh" content="{{ refresh_interval }}" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Dashboard</title>
   <style type="text/css">
@@ -23,7 +23,7 @@
 
 <h1>Dashboard</h1>
 <p class="ts">Updated: {{ now }}</p>
-<p class="ts">(Auto-refreshes every 5 minutes)</p>
+<p class="ts">(Auto-refreshes every {{ refresh_text }})</p>
 
 <hr />
 
