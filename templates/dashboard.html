@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta http-equiv="refresh" content="300" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard</title>
+  <style type="text/css">
+    body { background:#fff; color:#000; font-family:sans-serif; font-size:12pt; margin:4px; padding:0; }
+    h1   { font-size:14pt; margin:4px 0; border-bottom:2px solid #000; }
+    h2   { font-size:13pt; margin:6px 0 2px 0; }
+    table{ width:100%; border-collapse:collapse; margin-bottom:8px; }
+    td   { border:1px solid #666; padding:4px 6px; vertical-align:top; }
+    td.label { font-weight:bold; width:45%; background:#eee; }
+    .error   { color:#900; font-weight:bold; }
+    .ts      { font-size:9pt; color:#555; }
+    hr { border:0; border-top:1px solid #999; margin:8px 0; }
+  </style>
+</head>
+<body>
+
+<h1>Dashboard</h1>
+<p class="ts">Updated: {{ now }}</p>
+<p class="ts">(Auto-refreshes every 5 minutes)</p>
+
+<hr />
+
+<h2>Weather &#8212; {{ weather_city }}</h2>
+{% if weather_error %}
+  <p class="error">Weather unavailable: {{ weather_error }}</p>
+{% else %}
+<table>
+  <tr><td class="label">Condition</td><td>{{ weather_desc }}</td></tr>
+  <tr><td class="label">Temperature</td><td>{{ weather_temp }} &#176;{{ weather_unit }}</td></tr>
+  <tr><td class="label">Feels like</td><td>{{ weather_feels }} &#176;{{ weather_unit }}</td></tr>
+  <tr><td class="label">Humidity</td><td>{{ weather_humidity }} %</td></tr>
+  <tr><td class="label">Wind</td><td>{{ weather_wind }} m/s</td></tr>
+</table>
+{% endif %}
+
+<hr />
+
+<h2>Fio Banka SK &#8212; Account Balance</h2>
+{% if bank_error %}
+  <p class="error">Bank unavailable: {{ bank_error }}</p>
+{% else %}
+<table>
+  <tr><td class="label">Account</td><td>{{ bank_account }}</td></tr>
+  <tr><td class="label">IBAN</td><td>{{ bank_iban }}</td></tr>
+  <tr><td class="label">Balance</td><td><b>{{ bank_balance }} {{ bank_currency }}</b></td></tr>
+</table>
+
+<h2>Latest 5 transactions</h2>
+{% if bank_transactions %}
+<table>
+  <tr><td class="label">Date</td><td class="label">Amount</td></tr>
+  {% for tx in bank_transactions %}
+  <tr>
+    <td>
+      {{ tx.date }}<br />
+      {{ tx.type }}
+    </td>
+    <td>
+      <b>{{ tx.amount }} {{ tx.currency or bank_currency }}</b><br />
+      {{ tx.counterparty or tx.note }}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>No transactions available.</p>
+{% endif %}
+{% endif %}
+
+<hr />
+<p class="ts">Page served over HTTPS. Opera Mini compatible.</p>
+
+</body>
+</html>
+
