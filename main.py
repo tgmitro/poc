@@ -171,6 +171,10 @@ def fetch_bank():
 # Route
 # ---------------------------------------------------------------------------
 
+@app.get("/healthz")
+def healthz():
+    return {"ok": True}, 200
+
 @app.route("/")
 def dashboard():
     weather = fetch_weather()
