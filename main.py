@@ -164,7 +164,7 @@ def fetch_bank():
             )
 
         transactions.sort(key=lambda x: x["movement_id"], reverse=True)
-        latest_transactions = transactions[:5]
+        latest_transactions = transactions[:1]
 
         result = {
             "account":  info.get("accountId", ""),
