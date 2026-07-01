@@ -52,10 +52,19 @@ UNIT_LABEL = {"metric": "C", "imperial": "F"}.get(WEATHER_UNITS, "C")
 # ---------------------------------------------------------------------------
 _BANK_CACHES = {}
 _INTEREST_CACHE = {"rate": "N/A", "timestamp": 0}
+_FORECAST_CACHE = {"data": None, "timestamp": 0}
 
 # ---------------------------------------------------------------------------
 # Data fetching helpers
 # ---------------------------------------------------------------------------
+
+def format_iban(iban):
+    """Format IBAN with spaces every 4 characters for better readability/line-breaking."""
+    if not iban or iban == "N/A":
+        return iban
+    # Remove existing spaces and group by 4
+    s = str(iban).replace(" ", "")
+    return " ".join(s[i:i+4] for i in range(0, len(s), 4))
 
 def fetch_weather():
     """Return a dict with weather data or {'error': str}."""
@@ -169,10 +178,18 @@ def fetch_bank(token, cache_key):
 
             tx_currency = get_val(tx, "column14", "")
 
+            date_only = date_text.split("+")[0]
+            try:
+                dt_obj = datetime.strptime(date_only, "%Y-%m-%d")
+                weekday = dt_obj.strftime("%A")
+            except Exception:
+                weekday = ""
+
             transactions.append(
                 {
                     "movement_id": movement_id,
                     "date": date_text,
+                    "weekday": weekday,
                     "amount": amount,
                     "currency": tx_currency,
                     "type": tx_type,
@@ -186,7 +203,7 @@ def fetch_bank(token, cache_key):
 
         result = {
             "account":  info.get("accountId", ""),
-            "iban":     info.get("iban", "N/A"),
+            "iban":     format_iban(info.get("iban", "N/A")),
             "balance":  round(float(info.get("closingBalance", 0)), 2),
             "currency": info.get("currency", ""),
             "transactions": latest_transactions,
@@ -228,6 +245,90 @@ def fetch_interest_rate():
     return _INTEREST_CACHE["rate"]
 
 
+def fetch_forecast():
+    """Return a list of forecast items for 3 days or {'error': str}."""
+    global _FORECAST_CACHE
+    now = time.time()
+
+    # Cache for 30 minutes
+    if _FORECAST_CACHE["data"] and (now - _FORECAST_CACHE["timestamp"] < 1800):
+        return _FORECAST_CACHE["data"]
+
+    if not WEATHER_API_KEY:
+        return {"error": "WEATHER_API_KEY not set in .env"}
+
+    try:
+        url = "https://api.openweathermap.org/data/2.5/forecast"
+        params = {
+            "q": WEATHER_CITY,
+            "appid": WEATHER_API_KEY,
+            "units": WEATHER_UNITS,
+        }
+        r = requests.get(url, params=params, timeout=10)
+        d = r.json()
+
+        if r.status_code >= 400:
+            message = d.get("message") if isinstance(d, dict) else None
+            if message:
+                return {"error": f"OpenWeather API error: {message}"}
+        r.raise_for_status()
+
+        forecast_list = d.get("list", [])
+        results = []
+        seen_dates = set()
+
+        # Try to pick entries around noon for the next 3 days
+        for item in forecast_list:
+            dt_txt = item.get("dt_txt", "")
+            if not dt_txt:
+                continue
+            date_part = dt_txt.split(" ")[0]
+            time_part = dt_txt.split(" ")[1]
+
+            if date_part not in seen_dates and "12:00:00" in time_part:
+                main = item.get("main", {})
+                weather = item.get("weather", [{}])[0]
+                dt_obj = datetime.strptime(date_part, "%Y-%m-%d")
+                weekday = dt_obj.strftime("%A")
+                results.append({
+                    "date": date_part,
+                    "weekday": weekday,
+                    "temp": round(float(main.get("temp", 0)), 1),
+                    "desc": weather.get("description", "").capitalize(),
+                    "humidity": main.get("humidity", 0)
+                })
+                seen_dates.add(date_part)
+                if len(results) >= 3:
+                    break
+
+        # Fallback: if we didn't find 12:00 entries, just take first 3 unique days
+        if len(results) < 3:
+            for item in forecast_list:
+                dt_txt = item.get("dt_txt", "")
+                date_part = dt_txt.split(" ")[0]
+                if date_part not in seen_dates:
+                    main = item.get("main", {})
+                    weather = item.get("weather", [{}])[0]
+                    dt_obj = datetime.strptime(date_part, "%Y-%m-%d")
+                    weekday = dt_obj.strftime("%A")
+                    results.append({
+                        "date": date_part,
+                        "weekday": weekday,
+                        "temp": round(float(main.get("temp", 0)), 1),
+                        "desc": weather.get("description", "").capitalize(),
+                        "humidity": main.get("humidity", 0)
+                    })
+                    seen_dates.add(date_part)
+                    if len(results) >= 3:
+                        break
+
+        _FORECAST_CACHE["data"] = results
+        _FORECAST_CACHE["timestamp"] = now
+        return results
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 # ---------------------------------------------------------------------------
 # Route
 # ---------------------------------------------------------------------------
@@ -258,6 +359,20 @@ def toggle_tx():
         return redirect(url_for("login"))
     session["show_tx"] = not session.get("show_tx", True)
     return redirect(url_for("dashboard"))
+
+@app.route("/weather")
+def weather():
+    if not session.get("authenticated"):
+        return redirect(url_for("login"))
+    forecast = fetch_forecast()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return render_template(
+        "weather.html",
+        now=now,
+        forecast=forecast,
+        weather_city=WEATHER_CITY,
+        weather_unit=UNIT_LABEL
+    )
 
 @app.route("/")
 def dashboard():

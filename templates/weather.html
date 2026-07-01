@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Weather Forecast</title>
+  <style type="text/css">
+    body { background:#fff; color:#000; font-family:sans-serif; font-size:12pt; margin:4px; padding:0; }
+    h1   { font-size:14pt; margin:4px 0; border-bottom:2px solid #000; }
+    h2   { font-size:13pt; margin:6px 0 2px 0; }
+    table{ width:100%; border-collapse:collapse; margin-bottom:8px; }
+    td   { border:1px solid #666; padding:4px 6px; vertical-align:top; }
+    td.label { font-weight:bold; background:#eee; }
+    .error   { color:#900; font-weight:bold; }
+    .ts      { font-size:9pt; color:#555; }
+    hr { border:0; border-top:1px solid #999; margin:8px 0; }
+  </style>
+</head>
+<body>
+
+<h1>Weather Forecast</h1>
+<p class="ts">
+  Updated: {{ now }} | 
+  <a href="{{ url_for('dashboard') }}">Dashboard</a> |
+  <a href="{{ url_for('logout') }}">Log out</a>
+</p>
+
+<hr />
+
+<h2>3-Day Forecast &#8212; {{ weather_city }}</h2>
+
+{% if forecast is mapping and forecast.error %}
+  <p class="error">Forecast unavailable: {{ forecast.error }}</p>
+{% elif forecast %}
+<table>
+  <tr>
+    <td class="label">Date</td>
+    <td class="label">Condition</td>
+    <td class="label">Temp</td>
+    <td class="label">Hum</td>
+  </tr>
+  {% for day in forecast %}
+  <tr>
+    <td>{{ day.date }} ({{ day.weekday }})</td>
+    <td>{{ day.desc }}</td>
+    <td>{{ day.temp }} &#176;{{ weather_unit }}</td>
+    <td>{{ day.humidity }} %</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+  <p>No forecast data available.</p>
+{% endif %}
+
+<hr />
+<p class="ts">2026 &copy; TOMIG. Page served over HTTPS. Opera Mini compatible.</p>
+
+</body>
+</html>
