@@ -52,7 +52,7 @@
   <tr><td class="label">Balance</td><td><b>{{ bank_balance }} {{ bank_currency }}</b></td></tr>
 </table>
 
-<h2>Latest 5 transactions</h2>
+<h2>Latest transaction</h2>
 {% if bank_transactions %}
 <table>
   <tr><td class="label">Date</td><td class="label">Amount</td></tr>
@@ -75,7 +75,42 @@
 {% endif %}
 
 <hr />
-<p class="ts">Page served over HTTPS. Opera Mini compatible.</p>
+
+<h2>Savings account &#8212; Account Balance</h2>
+{% if savings_error %}
+  <p class="error">Savings unavailable: {{ savings_error }}</p>
+{% else %}
+<table>
+  <tr><td class="label">Account</td><td>{{ savings_account }}</td></tr>
+  <tr><td class="label">IBAN</td><td>{{ savings_iban }}</td></tr>
+  <tr><td class="label">Balance</td><td><b>{{ savings_balance }} {{ savings_currency }}</b></td></tr>
+  <tr><td class="label">Interest rate</td><td>{{ savings_interest_rate }}</td></tr>
+</table>
+
+<h2>Latest transaction</h2>
+{% if savings_transactions %}
+<table>
+  <tr><td class="label">Date</td><td class="label">Amount</td></tr>
+  {% for tx in savings_transactions %}
+  <tr>
+    <td>
+      {{ tx.date }}<br />
+      {{ tx.type }}
+    </td>
+    <td>
+      <b>{{ tx.amount }} {{ tx.currency or savings_currency }}</b><br />
+      {{ tx.counterparty or tx.note }}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>No transactions available.</p>
+{% endif %}
+{% endif %}
+
+<hr />
+<p class="ts">2026 &copy; TOMIG. Page served over HTTPS. Opera Mini compatible.</p>
 
 </body>
 </html>

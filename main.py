@@ -7,10 +7,15 @@ import os
 import time
 from datetime import datetime
 
+import re
 import requests
 from dotenv import load_dotenv
 from flask import Flask, render_template
 
+import logging
+logger = logging.getLogger(__name__)
+FORMAT = '%(asctime)s %(levelname)-8s %(name)s %(message)s'
+logging.basicConfig(level=logging.INFO, format=FORMAT)
 load_dotenv()
 
 app = Flask(__name__)
@@ -26,6 +31,8 @@ WEATHER_API_URL = os.getenv(
 )
 
 FIO_API_TOKEN   = os.getenv("FIO_API_TOKEN", "")
+SAVINGS_API_TOKEN = os.getenv("SAVINGS_API_TOKEN", "")
+FIO_INTEREST_RATE_URL = "https://www.fio.sk/bankove-sluzby/sporenie/sporiace-ucty"
 
 HOST     = os.getenv("HOST", "0.0.0.0")
 PORT     = int(os.getenv("PORT", "4443"))
@@ -39,7 +46,8 @@ UNIT_LABEL = {"metric": "C", "imperial": "F"}.get(WEATHER_UNITS, "C")
 # ---------------------------------------------------------------------------
 # Global Caches
 # ---------------------------------------------------------------------------
-_BANK_CACHE = {"data": None, "timestamp": 0}
+_BANK_CACHES = {}
+_INTEREST_CACHE = {"rate": "N/A", "timestamp": 0}
 
 # ---------------------------------------------------------------------------
 # Data fetching helpers
@@ -87,30 +95,36 @@ def fetch_weather():
         return {"error": f"Unexpected response: {exc}"}
 
 
-def fetch_bank():
+def fetch_bank(token, cache_key):
     """Return account balance and today's latest transactions or {'error': str}."""
-    global _BANK_CACHE
+    global _BANK_CACHES
     now = time.time()
 
-    # Return cached data if it's less than 30 seconds old
-    if _BANK_CACHE["data"] and (now - _BANK_CACHE["timestamp"] < 30):
-        return _BANK_CACHE["data"]
+    if cache_key not in _BANK_CACHES:
+        _BANK_CACHES[cache_key] = {"data": None, "timestamp": 0}
 
-    if not FIO_API_TOKEN:
-        return {"error": "FIO_API_TOKEN not set in .env"}
+    cache = _BANK_CACHES[cache_key]
+
+    # Return cached data if it's less than 30 seconds old
+    if cache["data"] and (now - cache["timestamp"] < 30):
+        return cache["data"]
+
+    if not token:
+        return {"error": f"Token for {cache_key} not set in .env"}
     try:
         today = datetime.now().date()
         start_of_month = today.replace(day=1)
         url = (
-            f"https://fioapi.fio.cz/v1/rest/periods/{FIO_API_TOKEN}"
+            f"https://fioapi.fio.cz/v1/rest/periods/{token}"
             f"/{start_of_month:%Y-%m-%d}/{today:%Y-%m-%d}"
             "/transactions.json"
         )
         r = requests.get(url, timeout=15)
+        logger.info(url)
 
         # If rate limited (409), return last known data if available
-        if r.status_code == 409 and _BANK_CACHE["data"]:
-            return _BANK_CACHE["data"]
+        if r.status_code == 409 and cache["data"]:
+            return cache["data"]
 
         r.raise_for_status()
 
@@ -164,7 +178,7 @@ def fetch_bank():
             )
 
         transactions.sort(key=lambda x: x["movement_id"], reverse=True)
-        latest_transactions = transactions[:1]
+        latest_transactions = transactions[:3]
 
         result = {
             "account":  info.get("accountId", ""),
@@ -175,14 +189,39 @@ def fetch_bank():
         }
 
         # Update cache
-        _BANK_CACHE["data"] = result
-        _BANK_CACHE["timestamp"] = now
+        cache["data"] = result
+        cache["timestamp"] = now
 
         return result
     except requests.RequestException as exc:
         return {"error": str(exc)}
     except (ValueError, TypeError, KeyError) as exc:
         return {"error": f"Unexpected response: {exc}"}
+
+
+def fetch_interest_rate():
+    """Scrape the current interest rate from Fio Banka website."""
+    global _INTEREST_CACHE
+    now = time.time()
+
+    # Cache for 1 hour (3600 seconds)
+    if _INTEREST_CACHE["rate"] != "N/A" and (now - _INTEREST_CACHE["timestamp"] < 3600):
+        return _INTEREST_CACHE["rate"]
+
+    try:
+        r = requests.get(FIO_INTEREST_RATE_URL, timeout=10)
+        r.raise_for_status()
+        html = r.text
+        match = re.search(r'Aktuálna úroková sadzba:\s*<big>(.*?)</big>', html)
+        if match:
+            rate = match.group(1).strip()
+            _INTEREST_CACHE["rate"] = rate
+            _INTEREST_CACHE["timestamp"] = now
+            return rate
+    except Exception as exc:
+        logger.error(f"Failed to fetch interest rate: {exc}")
+
+    return _INTEREST_CACHE["rate"]
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +235,9 @@ def healthz():
 @app.route("/")
 def dashboard():
     weather = fetch_weather()
-    bank    = fetch_bank()
+    bank    = fetch_bank(FIO_API_TOKEN, "main")
+    savings = fetch_bank(SAVINGS_API_TOKEN, "savings")
+    interest_rate = fetch_interest_rate()
     now     = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     refresh_interval = REFRESH_INTERVAL
@@ -229,6 +270,15 @@ def dashboard():
         bank_balance  = bank.get("balance", ""),
         bank_currency = bank.get("currency", ""),
         bank_transactions = bank.get("transactions", []),
+
+        # savings bank
+        savings_error    = savings.get("error"),
+        savings_account  = savings.get("account", ""),
+        savings_iban     = savings.get("iban", ""),
+        savings_balance  = savings.get("balance", ""),
+        savings_currency = savings.get("currency", ""),
+        savings_transactions = savings.get("transactions", []),
+        savings_interest_rate = interest_rate,
     )
 
 
