@@ -10,7 +10,7 @@ from datetime import datetime
 import re
 import requests
 from dotenv import load_dotenv
-from flask import Flask, render_template
+from flask import Flask, render_template, request, session, redirect, url_for
 
 import logging
 logger = logging.getLogger(__name__)
@@ -42,6 +42,8 @@ SSL_KEY  = os.getenv("SSL_KEY", "")
 DEBUG    = os.getenv("DEBUG", "False").lower() == "true"
 
 REFRESH_INTERVAL = int(os.getenv("REFRESH_INTERVAL", "300"))
+DASHBOARD_PIN = os.getenv("DASHBOARD_PIN", "1234")
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key")
 
 UNIT_LABEL = {"metric": "C", "imperial": "F"}.get(WEATHER_UNITS, "C")
 
@@ -234,13 +236,39 @@ def fetch_interest_rate():
 def healthz():
     return {"ok": True}, 200
 
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        if request.form.get("pin") == DASHBOARD_PIN:
+            session["authenticated"] = True
+            return redirect(url_for("dashboard"))
+        else:
+            error = "Invalid PIN"
+    return render_template("login.html", error=error)
+
+@app.route("/logout")
+def logout():
+    session.pop("authenticated", None)
+    return redirect(url_for("login"))
+
+@app.route("/toggle_tx")
+def toggle_tx():
+    if not session.get("authenticated"):
+        return redirect(url_for("login"))
+    session["show_tx"] = not session.get("show_tx", True)
+    return redirect(url_for("dashboard"))
+
 @app.route("/")
 def dashboard():
+    if not session.get("authenticated"):
+        return redirect(url_for("login"))
     weather = fetch_weather()
     bank    = fetch_bank(FIO_API_TOKEN, "main")
     savings = fetch_bank(SAVINGS_API_TOKEN, "savings")
     interest_rate = fetch_interest_rate()
     now     = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    show_tx = session.get("show_tx", True)
 
     refresh_interval = REFRESH_INTERVAL
     if refresh_interval % 60 == 0:
@@ -254,6 +282,7 @@ def dashboard():
         now=now,
         refresh_interval=refresh_interval,
         refresh_text=refresh_text,
+        show_tx=show_tx,
 
         # weather
         weather_city    = weather.get("city", WEATHER_CITY),

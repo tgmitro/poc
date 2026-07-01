@@ -22,7 +22,15 @@
 <body>
 
 <h1>Dashboard</h1>
-<p class="ts">Updated: {{ now }}</p>
+<p class="ts">
+  Updated: {{ now }} | 
+  <a href="{{ url_for('logout') }}">Log out</a> |
+  {% if show_tx %}
+    <a href="{{ url_for('toggle_tx') }}">Hide transactions</a>
+  {% else %}
+    <a href="{{ url_for('toggle_tx') }}">Show transactions</a>
+  {% endif %}
+</p>
 <p class="ts">(Auto-refreshes every {{ refresh_text }})</p>
 
 <hr />
@@ -52,6 +60,7 @@
   <tr><td class="label">Balance</td><td><b>{{ bank_balance }} {{ bank_currency }}</b></td></tr>
 </table>
 
+{% if show_tx %}
 <h2>Latest transaction</h2>
 {% if bank_transactions %}
 <table>
@@ -73,6 +82,7 @@
 <p>No transactions available.</p>
 {% endif %}
 {% endif %}
+{% endif %}
 
 <hr />
 
@@ -87,6 +97,7 @@
   <tr><td class="label">Interest rate</td><td>{{ savings_interest_rate }}</td></tr>
 </table>
 
+{% if show_tx %}
 <h2>Latest transaction</h2>
 {% if savings_transactions %}
 <table>
@@ -106,6 +117,7 @@
 </table>
 {% else %}
 <p>No transactions available.</p>
+{% endif %}
 {% endif %}
 {% endif %}
 
