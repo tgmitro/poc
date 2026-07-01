@@ -56,7 +56,6 @@
   <p class="error">Bank unavailable: {{ bank_error }}</p>
 {% else %}
 <table>
-  <tr><td class="label">Account</td><td>{{ bank_account }}</td></tr>
   <tr><td class="label">IBAN</td><td>{{ bank_iban }}</td></tr>
   <tr><td class="label">Balance</td><td><b>{{ bank_balance }} {{ bank_currency }}</b></td></tr>
 </table>
@@ -92,7 +91,6 @@
   <p class="error">Savings unavailable: {{ savings_error }}</p>
 {% else %}
 <table>
-  <tr><td class="label">Account</td><td>{{ savings_account }}</td></tr>
   <tr><td class="label">IBAN</td><td>{{ savings_iban }}</td></tr>
   <tr><td class="label">Balance</td><td><b>{{ savings_balance }} {{ savings_currency }}</b></td></tr>
   <tr><td class="label">Interest rate</td><td>{{ savings_interest_rate }}</td></tr>
