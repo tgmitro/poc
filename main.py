@@ -39,6 +39,8 @@ PORT     = int(os.getenv("PORT", "4443"))
 SSL_CERT = os.getenv("SSL_CERT", "")
 SSL_KEY  = os.getenv("SSL_KEY", "")
 
+DEBUG    = os.getenv("DEBUG", "False").lower() == "true"
+
 REFRESH_INTERVAL = int(os.getenv("REFRESH_INTERVAL", "300"))
 
 UNIT_LABEL = {"metric": "C", "imperial": "F"}.get(WEATHER_UNITS, "C")
@@ -288,4 +290,4 @@ def dashboard():
 
 if __name__ == "__main__":
     print(f"Starting dashboard on http://{HOST}:{PORT}/")
-    app.run(host=HOST, port=PORT, debug=True)
+    app.run(host=HOST, port=PORT, debug=DEBUG)
